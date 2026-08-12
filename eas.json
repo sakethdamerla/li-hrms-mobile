@@ -11,7 +11,7 @@
         "distribution": "internal"
       },
       "env": {
-        "EXPO_PUBLIC_API_ORIGIN": "https://hrms-appi.raviburaga.shop"
+        "EXPO_PUBLIC_API_ORIGIN": "https://hrms.pydah.edu.in"
       }
     },
     "development-simulator": {
@@ -21,7 +21,7 @@
         "simulator": true
       },
       "env": {
-        "EXPO_PUBLIC_API_ORIGIN": "https://hrms-appi.raviburaga.shop"
+        "EXPO_PUBLIC_API_ORIGIN": "https://hrms.pydah.edu.in"
       }
     },
     "preview": {
@@ -31,7 +31,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_ORIGIN": "http://103.140.18.28:5000"
+        "EXPO_PUBLIC_API_ORIGIN": "https://hrms.pydah.edu.in"
       }
     },
     "production": {
@@ -40,7 +40,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_ORIGIN": "http://103.140.18.28:5000"
+        "EXPO_PUBLIC_API_ORIGIN": "https://hrms.pydah.edu.in"
       }
     }
   },
