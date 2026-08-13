@@ -11,7 +11,7 @@
         "distribution": "internal"
       },
       "env": {
-        "EXPO_PUBLIC_API_ORIGIN": "https://hrms.pydah.edu.in"
+        "EXPO_PUBLIC_API_ORIGIN": "https://hrmsu1.sleipl.com"
       }
     },
     "development-simulator": {
@@ -21,7 +21,7 @@
         "simulator": true
       },
       "env": {
-        "EXPO_PUBLIC_API_ORIGIN": "https://hrms.pydah.edu.in"
+        "EXPO_PUBLIC_API_ORIGIN": "https://hrmsu1.sleipl.com"
       }
     },
     "preview": {
@@ -31,7 +31,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_ORIGIN": "https://hrms.pydah.edu.in"
+        "EXPO_PUBLIC_API_ORIGIN": "https://hrmsu1.sleipl.com"
       }
     },
     "production": {
@@ -40,7 +40,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_ORIGIN": "https://hrms.pydah.edu.in"
+        "EXPO_PUBLIC_API_ORIGIN": "https://hrmsu1.sleipl.com"
       }
     }
   },
