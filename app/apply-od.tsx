@@ -17,6 +17,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ChevronLeft, Camera, Image as ImageIcon, MapPin, Sparkles } from 'lucide-react-native';
+import axios from 'axios';
 import { api, ApiEnvelope } from '../src/api/client';
 import { useAuthStore } from '../src/store/useAuthStore';
 import { canApplyLeaves, canOdUploadFromDevice, isManagementRole } from '../src/lib/permissions';
@@ -26,6 +27,10 @@ import { startOdLocationTrailBackground } from '../src/odTrail/odLocationTrailBa
 import { canRecordOdLocationTrail } from '../src/odTrail/odTrailEligibility';
 import { BackgroundReadinessBanner } from '../src/background/BackgroundReadinessBanner';
 import { DateField, formatYmd } from '../src/components/DateField';
+import {
+    ApprovedRecordsPayload,
+    getApplyDateCheckBannerState,
+} from '../src/lib/leaveApplyApprovedRecords';
 
 type OdTypeOpt = { code: string; name: string; isActive?: boolean };
 type DurationMode = 'full_day' | 'half_day' | 'hours';
@@ -60,6 +65,8 @@ export default function ApplyODScreen() {
         totalWorkingHours?: number;
     } | null>(null);
     const [checkingHoliday, setCheckingHoliday] = useState(false);
+    const [approvedRecordsInfo, setApprovedRecordsInfo] = useState<ApprovedRecordsPayload | null>(null);
+    const [checkingApprovedRecords, setCheckingApprovedRecords] = useState(false);
 
     const [evidence, setEvidence] = useState<ImagePicker.ImagePickerAsset | null>(null);
     const [evidenceFromDeviceFile, setEvidenceFromDeviceFile] = useState(false);
@@ -270,6 +277,76 @@ export default function ApplyODScreen() {
         checkHolidayStatus();
     }, [odDate, selectedEmployee, employee]);
 
+    useEffect(() => {
+        const targetEmp = selectedEmployee || employee;
+        if (!odDate || !targetEmp) {
+            setApprovedRecordsInfo(null);
+            return;
+        }
+
+        const empId = targetEmp._id || targetEmp.id;
+        const empNo = targetEmp.emp_no;
+        if (!empId && !empNo) return;
+
+        let cancelled = false;
+        const checkApprovedRecords = async () => {
+            setCheckingApprovedRecords(true);
+            try {
+                const res = await api.getApprovedRecordsForDate(
+                    String(empId || ''),
+                    String(empNo || ''),
+                    odDate
+                );
+                if (cancelled) return;
+                const envelope = res.data as ApiEnvelope;
+                if (envelope.success && envelope.data) {
+                    const data = envelope.data as ApprovedRecordsPayload;
+                    setApprovedRecordsInfo(data);
+
+                    // Auto-select opposite half if approved half-day exists (same as web)
+                    if (data.hasLeave && data.leaveInfo?.isHalfDay) {
+                        const approvedHalf = data.leaveInfo.halfDayType;
+                        if (approvedHalf === 'first_half') {
+                            setDurationMode('half_day');
+                            setHalfDayType('second_half');
+                        } else if (approvedHalf === 'second_half') {
+                            setDurationMode('half_day');
+                            setHalfDayType('first_half');
+                        }
+                    } else if (data.hasOD && data.odInfo?.isHalfDay) {
+                        const approvedHalf = data.odInfo.halfDayType;
+                        if (approvedHalf === 'first_half') {
+                            setDurationMode('half_day');
+                            setHalfDayType('second_half');
+                        } else if (approvedHalf === 'second_half') {
+                            setDurationMode('half_day');
+                            setHalfDayType('first_half');
+                        }
+                    }
+                } else {
+                    setApprovedRecordsInfo(null);
+                }
+            } catch (err) {
+                console.error('Error checking approved records:', err);
+                if (!cancelled) setApprovedRecordsInfo(null);
+            } finally {
+                if (!cancelled) setCheckingApprovedRecords(false);
+            }
+        };
+
+        checkApprovedRecords();
+        return () => {
+            cancelled = true;
+        };
+    }, [odDate, selectedEmployee, employee]);
+
+    const isHalfDay = durationMode === 'half_day';
+    const applyDateCheckState = approvedRecordsInfo ? getApplyDateCheckBannerState(approvedRecordsInfo, {
+        applyType: 'od',
+        isHalfDay,
+        halfDayType: isHalfDay ? halfDayType : null,
+    }) : null;
+
     const selectedTypeLabel = types.find((t) => t.code === odType)?.name || odType || 'Select type';
 
     const hoursDurationSummary = (): { ok: boolean; minutes: number; msg?: string } => {
@@ -288,6 +365,13 @@ export default function ApplyODScreen() {
     };
 
     const onSubmit = async () => {
+        if (applyDateCheckState?.blocked) {
+            Alert.alert(
+                'Attendance Conflict',
+                applyDateCheckState.body || 'Attendance already exists on this date. Attendance is preferred over OD.'
+            );
+            return;
+        }
         if (!odType || !odDate || !purpose.trim() || !placeVisited.trim()) {
             Alert.alert('Required', 'Fill OD type, date, place visited, and purpose.');
             return;
@@ -414,11 +498,19 @@ export default function ApplyODScreen() {
                           ]
                 );
             } else {
-                Alert.alert('Failed', body.message || body.error || 'Could not submit');
+                const msg = body.message || body.error || 'Could not submit';
+                const isAtt = /attendance/i.test(msg);
+                Alert.alert(isAtt ? 'Attendance Conflict' : 'Failed', msg);
             }
         } catch (e: unknown) {
-            const msg = e && typeof e === 'object' && 'message' in e ? String((e as Error).message) : 'Network error';
-            Alert.alert('Error', msg);
+            let msg = 'Network error';
+            if (axios.isAxiosError(e)) {
+                msg = e.response?.data?.error || e.response?.data?.message || e.message || 'Server error';
+            } else if (e && typeof e === 'object' && 'message' in e) {
+                msg = String((e as Error).message);
+            }
+            const isAtt = /attendance/i.test(msg);
+            Alert.alert(isAtt ? 'Attendance Conflict' : 'Error', msg);
         } finally {
             setSubmitting(false);
         }
@@ -485,6 +577,34 @@ export default function ApplyODScreen() {
                         </View>
 
                         <DateField label="Date *" value={odDate} onChange={setOdDate} minimumDate={policyMin} maximumDate={policyMax} />
+
+                        {checkingApprovedRecords && (
+                            <View className="bg-neutral-50 rounded-2xl p-4 my-2 flex-row items-center justify-center">
+                                <ActivityIndicator size="small" color="#10B981" />
+                                <Text className="text-neutral-400 text-xs font-bold ml-2">Checking date conflicts...</Text>
+                            </View>
+                        )}
+
+                        {applyDateCheckState && (
+                            <View className={`border-2 rounded-2xl p-4 my-2 ${
+                                applyDateCheckState.variant === 'error' ? 'bg-red-50 border-red-200' :
+                                applyDateCheckState.variant === 'warning' ? 'bg-amber-50 border-amber-200' :
+                                applyDateCheckState.variant === 'info' ? 'bg-blue-50 border-blue-200' :
+                                'bg-emerald-50 border-emerald-200'
+                            }`}>
+                                <Text className={`font-bold text-sm mb-1 ${
+                                    applyDateCheckState.variant === 'error' ? 'text-red-800' :
+                                    applyDateCheckState.variant === 'warning' ? 'text-amber-800' :
+                                    applyDateCheckState.variant === 'info' ? 'text-blue-800' :
+                                    'text-emerald-800'
+                                }`}>
+                                    {applyDateCheckState.headline}
+                                </Text>
+                                <Text className="text-xs text-neutral-600 leading-relaxed font-medium">
+                                    {applyDateCheckState.body}
+                                </Text>
+                            </View>
+                        )}
 
                         {/* Holiday / Week-off Indicator */}
                         {checkingHoliday ? (
